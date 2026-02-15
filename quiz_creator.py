@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QTextEdit, QPushButton, QListWidget,
@@ -10,14 +11,18 @@ from PySide6.QtWidgets import (
 class QuizCreator(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("QR Creator")
+        self.setWindowTitle("QR Creator (Quiz Royale Creator)")
         self.setMinimumWidth(800)
 
         self.questions = []
         self.current_index = None
+        self.current_file = None  # 🔥 No default file
 
         self.init_ui()
 
+    # ----------------------------
+    # UI
+    # ----------------------------
     def init_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -25,12 +30,10 @@ class QuizCreator(QMainWindow):
         main_layout = QHBoxLayout()
         central_widget.setLayout(main_layout)
 
-        # LEFT PANEL (List)
         self.list_widget = QListWidget()
         self.list_widget.clicked.connect(self.load_selected_question)
         main_layout.addWidget(self.list_widget, 2)
 
-        # RIGHT PANEL (Form)
         right_layout = QVBoxLayout()
         main_layout.addLayout(right_layout, 3)
 
@@ -40,13 +43,10 @@ class QuizCreator(QMainWindow):
         right_layout.addWidget(QLabel("Question Type"))
         right_layout.addWidget(self.type_combo)
 
-        # Question (Multiline)
         self.question_edit = QTextEdit()
-        self.question_edit.setPlaceholderText("Enter question here...")
         right_layout.addWidget(QLabel("Question"))
         right_layout.addWidget(self.question_edit)
 
-        # Options for MC (Multiline now)
         self.option_edits = []
         for i in range(4):
             edit = QTextEdit()
@@ -55,13 +55,11 @@ class QuizCreator(QMainWindow):
             self.option_edits.append(edit)
             right_layout.addWidget(edit)
 
-        # Answer (Multiline now)
         self.answer_edit = QTextEdit()
         self.answer_edit.setMaximumHeight(60)
         right_layout.addWidget(QLabel("Answer (Index 0-3 for MC / Text for Identification)"))
         right_layout.addWidget(self.answer_edit)
 
-        # Buttons
         btn_layout = QHBoxLayout()
         right_layout.addLayout(btn_layout)
 
@@ -74,7 +72,7 @@ class QuizCreator(QMainWindow):
         self.import_btn = QPushButton("Import JSON")
         self.import_btn.clicked.connect(self.import_json)
 
-        self.export_btn = QPushButton("Export JSON")
+        self.export_btn = QPushButton("Export As")
         self.export_btn.clicked.connect(self.export_json)
 
         btn_layout.addWidget(self.add_btn)
@@ -84,6 +82,31 @@ class QuizCreator(QMainWindow):
 
         self.toggle_options()
 
+    # ----------------------------
+    # Save Logic
+    # ----------------------------
+    def save_to_file(self):
+        # If no file selected yet → ask user
+        if not self.current_file:
+            file_name, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Quiz",
+                "",
+                "JSON Files (*.json)"
+            )
+
+            if not file_name:
+                return  # User cancelled save
+
+            self.current_file = file_name
+
+        # Save to selected file
+        with open(self.current_file, "w") as f:
+            json.dump({"questions": self.questions}, f, indent=4)
+
+    # ----------------------------
+    # Question Logic
+    # ----------------------------
     def toggle_options(self):
         is_mc = self.type_combo.currentText() == "multiple_choice"
         for edit in self.option_edits:
@@ -101,7 +124,7 @@ class QuizCreator(QMainWindow):
             options = [e.toPlainText().strip() for e in self.option_edits]
 
             if any(not opt for opt in options):
-                QMessageBox.warning(self, "Error", "All 4 options are required")
+                QMessageBox.warning(self, "Error", "All 4 options required")
                 return
 
             try:
@@ -109,7 +132,7 @@ class QuizCreator(QMainWindow):
                 if answer < 0 or answer > 3:
                     raise ValueError
             except:
-                QMessageBox.warning(self, "Error", "Answer must be 0-3 for MC")
+                QMessageBox.warning(self, "Error", "Answer must be 0-3")
                 return
 
             question_data = {
@@ -118,7 +141,6 @@ class QuizCreator(QMainWindow):
                 "options": options,
                 "answer": answer
             }
-
         else:
             answer = self.answer_edit.toPlainText().strip()
             if not answer:
@@ -138,12 +160,14 @@ class QuizCreator(QMainWindow):
 
         self.refresh_list()
         self.clear_form()
+        self.save_to_file()  # 🔥 Auto-save
 
     def delete_question(self):
         if self.current_index is not None:
             del self.questions[self.current_index]
             self.refresh_list()
             self.clear_form()
+            self.save_to_file()  # 🔥 Auto-save
 
     def load_selected_question(self):
         self.current_index = self.list_widget.currentRow()
@@ -172,19 +196,33 @@ class QuizCreator(QMainWindow):
         for edit in self.option_edits:
             edit.clear()
 
-    def export_json(self):
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save File", "", "JSON Files (*.json)")
-        if file_name:
-            with open(file_name, "w") as f:
-                json.dump({"questions": self.questions}, f, indent=4)
-
+    # ----------------------------
+    # Import / Export
+    # ----------------------------
     def import_json(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open File", "", "JSON Files (*.json)")
+        file_name, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Quiz",
+            "",
+            "JSON Files (*.json)"
+        )
         if file_name:
             with open(file_name, "r") as f:
                 data = json.load(f)
                 self.questions = data.get("questions", [])
+                self.current_file = file_name  # 🔥 Imported file becomes active
                 self.refresh_list()
+
+    def export_json(self):
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Quiz As",
+            "",
+            "JSON Files (*.json)"
+        )
+        if file_name:
+            with open(file_name, "w") as f:
+                json.dump({"questions": self.questions}, f, indent=4)
 
 
 if __name__ == "__main__":
