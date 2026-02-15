@@ -17,6 +17,7 @@ The application supports:
 It features automatic saving with file selection on first save.
 
 ---
+## [Download app here](https://github.com/NwizuEmmanuel/qr_creator/releases)
 
 # 🚀 Features
 
