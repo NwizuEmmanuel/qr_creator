@@ -4,3 +4,4 @@ build/
 *.spec
 *.json
 installer_output/
+*.qr
